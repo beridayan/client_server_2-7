@@ -1,0 +1,39 @@
+import socket
+import protocol
+
+IP = "127.0.0.1"
+PORT = 8820
+
+
+def handle_server_response(my_socket, cmd):
+    response = my_socket.recv(1024).decode()
+    print("Server response:", response)
+def sendname(my_socket):
+    name = input("Enter username: ")
+    my_socket.send(name.encode())
+
+def main():
+    # open socket with the server
+    my_socket = socket.socket()
+    my_socket.connect((IP, PORT))
+    sendname(my_socket)
+    # print instructions
+    print('Welcome to remote computer application. Available commands are:\n')
+    print('TAKE_SCREENSHOT\nSEND_PHOTO\nDIR\nDELETE\nCOPY\nEXECUTE\nEXIT')
+
+    # loop until user requested to exit
+    while True:
+        cmd = input("Please enter command:\n")
+        if protocol.check_cmd(cmd):
+            packet = protocol.create_msg(cmd)
+            my_socket.send(packet)
+            handle_server_response(my_socket, cmd)
+            if cmd == 'EXIT':
+                break
+        else:
+            print("Not a valid command, or missing parameters\n")
+
+    my_socket.close()
+
+if __name__ == '__main__':
+    main()

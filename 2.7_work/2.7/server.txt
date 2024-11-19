@@ -1,0 +1,75 @@
+import socket
+import protocol
+import glob
+import os
+import shutil
+IP = "127.0.0.1"
+PORT = 8820
+PHOTO_PATH = ""  # Define this path for the server to save screenshots
+
+def format_and_check_client_request(cmd):
+    command_parts = cmd.split()
+    command = command_parts[0]
+    params = command_parts[1:] if len(command_parts) > 1 else []
+
+    print(f"{name}: {command_parts}")
+
+
+    if protocol.check_cmd(cmd) and all(glob.glob(param) for param in params):
+        return True, command, params
+    return False, None, None
+
+def handle_client_request(command, params):
+    if command == "DIR":
+        files_list = glob.glob(params[0])
+        return "\n".join(files_list)
+    elif command == "DELETE":
+        os.remove(params[0])
+    elif command == "COPY":
+        shutil.copy(params[0] , params[1])
+    elif command == "TAKE_SCREENSHOT":
+        # Implement screenshot logic and save it to PHOTO_PATH
+        return "Screenshot taken"
+    # (Handle other commands similarly)
+    return "Command executed successfully"
+
+def main():
+    # Open socket with client
+    server_socket = socket.socket()
+    server_socket.bind((IP, PORT))
+    server_socket.listen()
+    print("Server is listening...")
+    client_socket, client_address = server_socket.accept()
+    global name
+    name = client_socket.recv(1024).decode()
+
+    print(f"Connected to client at {client_address}")
+
+    # Handle requests until user asks to exit
+    while True:
+
+        valid_protocol, cmd = protocol.get_msg(client_socket)
+        if valid_protocol:
+            valid_cmd, command, params = format_and_check_client_request(cmd)
+
+            if valid_cmd:
+                response = handle_client_request(command, params)
+                packet = protocol.create_msg(response)
+                print(f"{name}: {packet}") #printing in the server
+                client_socket.send(packet)
+                if command == 'EXIT':
+                    break
+            else:
+                response = 'Bad command or parameters'
+                client_socket.send(protocol.create_msg(response))
+        else:
+            response = 'Packet not according to protocol'
+            client_socket.send(protocol.create_msg(response))
+            client_socket.recv(1024)  # Clean socket
+
+    print("Closing connection")
+    client_socket.close()
+    server_socket.close()
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,27 @@
+LENGTH_FIELD_SIZE = 4
+PORT = 8820
+def check_cmd(data):
+    check = False
+
+    commands = {
+        "DIR": 1, "DELETE": 1, "COPY": 2, "EXECUTE": 1, "TAKE_SCREENSHOT": 0, "SEND_PHOTO": 1, "EXIT": 0
+    }
+    command_parts = data.split()
+    command = command_parts[0]
+    if len(command_parts) -1  == commands[command]:
+        check = True
+
+    if (check):
+        return command in commands
+    return False
+def create_msg(data):
+    data_length = str(len(data)).zfill(LENGTH_FIELD_SIZE)
+    return (data_length + data).encode()
+
+def get_msg(my_socket):
+    length_data = my_socket.recv(LENGTH_FIELD_SIZE).decode()
+    if not length_data.isdigit():
+        return False, "Error"
+    length = int(length_data)
+    message = my_socket.recv(length).decode()
+    return True, message

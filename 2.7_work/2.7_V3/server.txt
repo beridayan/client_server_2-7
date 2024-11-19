@@ -1,0 +1,105 @@
+import socket
+import protocol
+import glob
+import os
+import shutil
+from PIL import ImageGrab #pip install Pillow
+
+IP = "0.0.0.0"
+PORT = 1234
+
+
+def format_and_check_client_request(cmd):
+    command_parts = cmd.split()
+    command = command_parts[0]
+    params = command_parts[1:] if len(command_parts) > 1 else []
+
+    print(f"{name}: {command_parts}")
+
+    if protocol.check_cmd(cmd):
+        return True, command, params
+    return False, None, None
+
+def handle_client_request(command, params,client_socket):
+    if command == "DIR":
+        files_list = glob.glob(params[0])
+        return "\n".join(files_list)
+    elif command == "DELETE":
+        os.remove(params[0])
+    elif command == "COPY":
+        shutil.copy(params[0] , params[1])
+    elif command == "EXECUTE":
+        os.system(params[0])
+
+    if command == "SEND_PHOTO":
+        if os.path.isfile(params[0]):
+            # Open the image file in binary mode
+            with open(params[0], "rb") as image:
+                image_content = image.read()
+
+                # Prepare the image length and send it
+                image_length = str(len(image_content))
+                length_of_images_length = str(len(image_length)).zfill(4)
+
+                client_socket.send(length_of_images_length.encode())  # Send length of length
+                client_socket.send(image_length.encode())  # Send actual length
+                client_socket.send(image_content)  # Send image content
+        else:
+            # Inform the client to take a screenshot first
+            data_to_send = protocol.create_msg("Take a screenshot first.")
+            client_socket.send(data_to_send)
+
+    elif command == "TAKE_SCREENSHOT":
+        # Take a screenshot of the entire screen
+        screenshot = ImageGrab.grab()
+        # Save the screenshot to a file
+        screenshot.save(params[0])
+
+
+
+
+    # (Handle other commands similarly)
+    return "Command executed successfully"
+
+
+def main():
+    # Open socket with client
+    server_socket = socket.socket()
+    server_socket.bind((IP, PORT))
+    server_socket.listen()
+    print("Server is listening...")
+    client_socket, client_address = server_socket.accept()
+    global name
+    name = client_socket.recv(1024).decode()
+
+    print(f"Connected to client at {client_address}")
+
+    # Handle requests until user asks to exit
+    while True:
+
+        valid_protocol, cmd = protocol.get_msg(client_socket)
+        if valid_protocol:
+            valid_cmd, command, params = format_and_check_client_request(cmd)
+
+            if valid_cmd:
+                response = handle_client_request(command, params,client_socket)
+                packet = protocol.create_msg(response)
+                print(f"{name}: {packet}")#printing in the server
+                client_socket.send(packet)
+                if command == 'EXIT':
+                    break
+            else:
+                response = 'Bad command or parameters'
+                client_socket.send(protocol.create_msg(response))
+        else:
+            response = 'Packet not according to protocol'
+            client_socket.send(protocol.create_msg(response))
+            client_socket.recv(1024)  # Clean socket
+
+    print("Closing connection")
+    client_socket.close()
+    server_socket.close()
+
+
+if __name__ == '__main__':
+    main()
